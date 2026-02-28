@@ -49,10 +49,7 @@ impl GeminiClient {
     /// Send a request and stream the response to stdout.
     /// Displays grounding sources (if any) to stderr after the response.
     pub async fn send(&self, history: &[Content]) -> Result<()> {
-        let url = format!(
-            "{}/{}:streamGenerateContent?alt=sse",
-            API_BASE, self.model
-        );
+        let url = format!("{}/{}:streamGenerateContent?alt=sse", API_BASE, self.model);
 
         let body = GenerateRequest {
             contents: history.to_vec(),
