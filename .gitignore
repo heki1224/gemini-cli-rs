@@ -1,0 +1,13 @@
+# Rust
+/target/
+
+# Environment variables (API keys)
+.env
+.env.*
+
+# Project-specific (not for public)
+/.artifacts/
+/tasks/
+
+# macOS
+.DS_Store
