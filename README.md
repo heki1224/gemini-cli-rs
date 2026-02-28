@@ -46,7 +46,7 @@ gemini -a "your-api-key" -p "Hello"
 |------|-------------|---------|
 | `-p, --prompt` | Prompt to send **(required)** | — |
 | `-a, --api-key` | Gemini API key (or `GEMINI_API_KEY` env) | — |
-| `-m, --model` | Model to use | `gemini-2.0-flash` |
+| `-m, --model` | Model to use | `gemini-3-flash-preview` |
 
 ## GEMINI.md
 
