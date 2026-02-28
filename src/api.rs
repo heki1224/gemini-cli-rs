@@ -50,8 +50,8 @@ impl GeminiClient {
     /// Displays grounding sources (if any) to stderr after the response.
     pub async fn send(&self, history: &[Content]) -> Result<()> {
         let url = format!(
-            "{}/{}:streamGenerateContent?alt=sse&key={}",
-            API_BASE, self.model, self.api_key
+            "{}/{}:streamGenerateContent?alt=sse",
+            API_BASE, self.model
         );
 
         let body = GenerateRequest {
@@ -65,6 +65,7 @@ impl GeminiClient {
         let response = self
             .client
             .post(&url)
+            .header("x-goog-api-key", &self.api_key)
             .json(&body)
             .send()
             .await
