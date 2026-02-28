@@ -8,7 +8,7 @@ Gemini CLI written in Rust, optimized for use as an [MCP](https://modelcontextpr
 ## Features
 
 - **SSE Streaming** — Streams responses from the Gemini API in real time
-- **Google Search Grounding** — Automatically searches the web and appends sources
+- **Google Search Grounding** — Always-on; automatically searches the web and prints sources to stderr
 - **GEMINI.md Context** — Loads project-specific context from `GEMINI.md` (walks up to the nearest `.git` root)
 - **Single-shot mode** — Designed for non-interactive, scriptable use
 
@@ -85,7 +85,9 @@ Once registered, Claude Code can use the `gemini` tool to delegate prompts to Ge
 
 ## GEMINI.md
 
-Place a `GEMINI.md` file in your project root (or any parent directory up to `.git`) to inject system-level context into every request. Useful for project-specific instructions.
+Place a `GEMINI.md` file in your current working directory (or any parent directory up to the `.git` root, or the filesystem root) to inject system-level context into every request. Useful for project-specific instructions.
+
+When loaded, the tool prints `[context] Loaded <path>` to stderr.
 
 ```
 your-project/
