@@ -85,7 +85,7 @@ Once registered, Claude Code can use the `gemini` tool to delegate prompts to Ge
 
 ## GEMINI.md
 
-Place a `GEMINI.md` file in your current working directory (or any parent directory up to `.git`) to inject system-level context into every request. Useful for project-specific instructions.
+Place a `GEMINI.md` file in your current working directory (or any parent directory up to the `.git` root, or the filesystem root) to inject system-level context into every request. Useful for project-specific instructions.
 
 When loaded, the tool prints `[context] Loaded <path>` to stderr.
 
