@@ -7,15 +7,16 @@ Gemini CLI written in Rust, optimized for use as an [MCP](https://modelcontextpr
 
 ## Features
 
+- **MCP Server mode** — Runs as a native MCP server (`--mcp-server`); integrates directly with Claude Code
 - **SSE Streaming** — Streams responses from the Gemini API in real time
-- **Google Search Grounding** — Always-on; automatically searches the web and prints sources to stderr
+- **Google Search Grounding** — Always-on; sources are printed to stderr in CLI mode and included in the response in MCP mode
 - **GEMINI.md Context** — Loads project-specific context from `GEMINI.md` (walks up to the nearest `.git` root)
 - **Single-shot mode** — Designed for non-interactive, scriptable use
 
 ## Prerequisites
 
 - Rust 1.70+
-- A Gemini API key — get one at [Google AI Studio](https://aistudio.google.com/apikey)
+- A Gemini API key (`GEMINI_API_KEY`) — get one at [Google AI Studio](https://aistudio.google.com/apikey)
 
 ## Installation
 
@@ -33,8 +34,10 @@ cp target/release/gemini ~/.local/bin/gemini
 
 ## Usage
 
+### CLI mode
+
 ```bash
-# Set your API key (recommended)
+# Set your API key
 export GEMINI_API_KEY="your-api-key"
 
 # Send a prompt
@@ -46,6 +49,19 @@ gemini -m gemini-2.5-pro -p "Explain Rust's borrow checker"
 # Pass the API key directly
 gemini -a "your-api-key" -p "Hello"
 ```
+
+Grounding sources are printed to **stderr** after the response.
+
+### MCP server mode
+
+In MCP mode the binary is launched automatically by Claude Code — you do not normally run it directly. See [MCP Setup](#mcp-setup-claude-code) for registration steps.
+
+```bash
+# Manual launch (for debugging)
+GEMINI_API_KEY="your-api-key" gemini --mcp-server
+```
+
+Grounding sources are included **in the response text** (not stderr).
 
 ## Options
 
