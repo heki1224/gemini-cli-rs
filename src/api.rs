@@ -10,7 +10,6 @@ use crate::models::{
 
 const API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
-
 pub struct GeminiClient {
     client: Client,
     api_key: String,
@@ -198,4 +197,3 @@ impl GeminiClient {
         Ok(())
     }
 }
-
