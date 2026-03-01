@@ -18,12 +18,12 @@ pub async fn run(api_key: String) -> Result<()> {
     let mut lines = stdin.lines();
 
     while let Some(line) = lines.next_line().await? {
-        let line = line.trim().to_string();
+        let line = line.trim();
         if line.is_empty() {
             continue;
         }
 
-        let request: Value = match serde_json::from_str(&line) {
+        let request: Value = match serde_json::from_str(line) {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("[gemini-mcp] Failed to parse request: {}", e);
@@ -41,27 +41,33 @@ pub async fn run(api_key: String) -> Result<()> {
 
         eprintln!("[gemini-mcp] method={}", method);
 
+        let response_id = id.filter(|v| !v.is_null());
+
         match method {
             "tools/call" => match call_tool(&request, &api_key).await {
                 Ok(text) => {
-                    send_response(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "content": [{ "type": "text", "text": text }]
-                        }
-                    }))?;
+                    if let Some(ref id) = response_id {
+                        send_response(json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "result": {
+                                "content": [{ "type": "text", "text": text }]
+                            }
+                        }))?;
+                    }
                 }
                 Err(e) => {
                     eprintln!("[gemini-mcp] Tool call error: {}", e);
-                    send_response(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32000,
-                            "message": format!("{}", e)
-                        }
-                    }))?;
+                    if let Some(ref id) = response_id {
+                        send_response(json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "error": {
+                                "code": -32000,
+                                "message": format!("{}", e)
+                            }
+                        }))?;
+                    }
                 }
             },
             _ => {
@@ -83,7 +89,7 @@ fn make_response(request: &Value) -> Option<Value> {
     let method = request["method"].as_str().unwrap_or("");
 
     match method {
-        "initialize" => Some(json!({
+        "initialize" => id.filter(|v| !v.is_null()).map(|id| json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": {
@@ -106,7 +112,7 @@ fn make_response(request: &Value) -> Option<Value> {
                 "result": {}
             })
         }),
-        "tools/list" => Some(json!({
+        "tools/list" => id.filter(|v| !v.is_null()).map(|id| json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": {
@@ -211,6 +217,16 @@ mod tests {
     #[test]
     fn initialized_notification_returns_none() {
         assert!(make_response(&notif("initialized")).is_none());
+    }
+
+    #[test]
+    fn initialize_notification_returns_none() {
+        assert!(make_response(&notif("initialize")).is_none());
+    }
+
+    #[test]
+    fn tools_list_notification_returns_none() {
+        assert!(make_response(&notif("tools/list")).is_none());
     }
 
     #[test]
