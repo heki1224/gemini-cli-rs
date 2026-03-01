@@ -51,37 +51,46 @@ gemini -a "your-api-key" -p "Hello"
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-p, --prompt` | Prompt to send **(required)** | — |
+| `-p, --prompt` | Prompt to send (required in CLI mode) | — |
 | `-a, --api-key` | Gemini API key (or `GEMINI_API_KEY` env) | — |
 | `-m, --model` | Model to use | `gemini-3-flash-preview` |
+| `--mcp-server` | Run as MCP server (JSON-RPC 2.0 over stdio) | — |
 
 ## MCP Setup (Claude Code)
 
 This tool is designed to be used as an MCP server inside Claude Code, providing Gemini with Google Search Grounding as a secondary AI assistant.
 
-### 1. Register as an MCP server
+### 1. Build the binary
 
 ```bash
-claude mcp add gemini /path/to/target/release/gemini --scope user
+cargo build --release
+```
+
+### 2. Register as an MCP server
+
+```bash
+claude mcp add gemini /path/to/target/release/gemini --scope user -- --mcp-server
 ```
 
 Use `--scope user` to make it available across all projects, or `--scope project` to limit it to the current project.
 
-### 2. Set your API key
+### 3. Set your API key
+
+Add `GEMINI_API_KEY` to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
 
 ```bash
 export GEMINI_API_KEY="your-api-key"
 ```
 
-Or add it to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) to persist it.
-
-### 3. Verify the connection
+### 4. Restart Claude Code and verify
 
 ```bash
 claude mcp list
 ```
 
-Once registered, Claude Code can use the `gemini` tool to delegate prompts to Gemini with real-time Google Search results.
+Once registered, the `ask_gemini_mcp` tool is available. Claude Code routes prompts to Gemini with real-time Google Search grounding.
+
+> **Note:** The binary writes protocol messages to stdout and all logs to stderr. Do not redirect stderr if you want to see debug output.
 
 ## GEMINI.md
 
