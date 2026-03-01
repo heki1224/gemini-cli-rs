@@ -85,20 +85,25 @@ impl GeminiClient {
 
             while let Some(newline_pos) = buffer.find('\n') {
                 let line = buffer[..newline_pos].trim().to_string();
-                buffer = buffer[newline_pos + 1..].to_string();
+                buffer.drain(..=newline_pos);
 
-                if let Some(text) = parse_sse_text(&line) {
-                    result.push_str(&text);
-                }
-
-                if let Some(json_str) = line.strip_prefix("data: ") {
-                    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) {
-                        if let Some(mut candidates) = chunk.candidates {
-                            if let Some(candidate) = candidates.drain(..).next() {
-                                if let Some(gm) = candidate.grounding_metadata {
-                                    pending_grounding = Some(gm);
+                let Some(json_str) = line.strip_prefix("data: ") else {
+                    continue;
+                };
+                let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) else {
+                    continue;
+                };
+                if let Some(mut candidates) = chunk.candidates {
+                    if let Some(candidate) = candidates.drain(..).next() {
+                        if let Some(content) = candidate.content {
+                            for part in content.parts {
+                                if let Some(text) = part.text {
+                                    result.push_str(&text);
                                 }
                             }
+                        }
+                        if let Some(gm) = candidate.grounding_metadata {
+                            pending_grounding = Some(gm);
                         }
                     }
                 }
@@ -162,22 +167,27 @@ impl GeminiClient {
 
             while let Some(newline_pos) = buffer.find('\n') {
                 let line = buffer[..newline_pos].trim().to_string();
-                buffer = buffer[newline_pos + 1..].to_string();
+                buffer.drain(..=newline_pos);
 
-                if let Some(text) = parse_sse_text(&line) {
-                    print!("{}", text);
-                    io::stdout().flush().ok();
-                }
-
-                // Extract groundingMetadata from the same SSE line (last one wins)
-                if let Some(json_str) = line.strip_prefix("data: ") {
-                    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) {
-                        if let Some(mut candidates) = chunk.candidates {
-                            if let Some(candidate) = candidates.drain(..).next() {
-                                if let Some(gm) = candidate.grounding_metadata {
-                                    pending_grounding = Some(gm);
+                let Some(json_str) = line.strip_prefix("data: ") else {
+                    continue;
+                };
+                let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) else {
+                    continue;
+                };
+                // Extract text and groundingMetadata from a single parse (last grounding wins)
+                if let Some(mut candidates) = chunk.candidates {
+                    if let Some(candidate) = candidates.drain(..).next() {
+                        if let Some(content) = candidate.content {
+                            for part in content.parts {
+                                if let Some(text) = part.text {
+                                    print!("{}", text);
+                                    io::stdout().flush().ok();
                                 }
                             }
+                        }
+                        if let Some(gm) = candidate.grounding_metadata {
+                            pending_grounding = Some(gm);
                         }
                     }
                 }

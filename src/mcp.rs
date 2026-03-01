@@ -27,6 +27,11 @@ pub async fn run(api_key: String) -> Result<()> {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("[gemini-mcp] Failed to parse request: {}", e);
+                send_response(json!({
+                    "jsonrpc": "2.0",
+                    "id": null,
+                    "error": { "code": -32700, "message": "Parse error" }
+                }))?;
                 continue;
             }
         };
@@ -37,30 +42,28 @@ pub async fn run(api_key: String) -> Result<()> {
         eprintln!("[gemini-mcp] method={}", method);
 
         match method {
-            "tools/call" => {
-                match call_tool(&request, &api_key).await {
-                    Ok(text) => {
-                        send_response(json!({
-                            "jsonrpc": "2.0",
-                            "id": id,
-                            "result": {
-                                "content": [{ "type": "text", "text": text }]
-                            }
-                        }))?;
-                    }
-                    Err(e) => {
-                        eprintln!("[gemini-mcp] Tool call error: {}", e);
-                        send_response(json!({
-                            "jsonrpc": "2.0",
-                            "id": id,
-                            "error": {
-                                "code": -32000,
-                                "message": format!("{}", e)
-                            }
-                        }))?;
-                    }
+            "tools/call" => match call_tool(&request, &api_key).await {
+                Ok(text) => {
+                    send_response(json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": text }]
+                        }
+                    }))?;
                 }
-            }
+                Err(e) => {
+                    eprintln!("[gemini-mcp] Tool call error: {}", e);
+                    send_response(json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "error": {
+                            "code": -32000,
+                            "message": format!("{}", e)
+                        }
+                    }))?;
+                }
+            },
             _ => {
                 if let Some(resp) = make_response(&request) {
                     send_response(resp)?;
@@ -96,11 +99,13 @@ fn make_response(request: &Value) -> Option<Value> {
             eprintln!("[gemini-mcp] Handshake complete");
             None
         }
-        "ping" => id.map(|id| json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {}
-        })),
+        "ping" => id.map(|id| {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {}
+            })
+        }),
         "tools/list" => Some(json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -125,14 +130,16 @@ fn make_response(request: &Value) -> Option<Value> {
                 }]
             }
         })),
-        _ => id.map(|id| json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": {
-                "code": -32601,
-                "message": format!("Method not found: {}", method)
-            }
-        })),
+        _ => id.map(|id| {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32601,
+                    "message": format!("Method not found: {}", method)
+                }
+            })
+        }),
     }
 }
 
@@ -146,13 +153,17 @@ pub(crate) async fn call_tool(request: &Value, api_key: &str) -> Result<String> 
 
     let args = &params["arguments"];
     let prompt = args["prompt"].as_str().unwrap_or("").trim().to_string();
-    let model = args["model"]
-        .as_str()
-        .unwrap_or(DEFAULT_MODEL)
-        .to_string();
+    let model = args["model"].as_str().unwrap_or(DEFAULT_MODEL).to_string();
 
     if prompt.is_empty() {
         anyhow::bail!("prompt must not be empty");
+    }
+
+    if !model
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '.')
+    {
+        anyhow::bail!("Invalid model name: {}", model);
     }
 
     let system_prompt = context::load_context();
@@ -208,7 +219,10 @@ mod tests {
         let tools = resp["result"]["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["name"], "ask_gemini_mcp");
-        assert!(tools[0]["inputSchema"]["required"].as_array().unwrap().contains(&json!("prompt")));
+        assert!(tools[0]["inputSchema"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("prompt")));
     }
 
     #[test]
@@ -229,5 +243,12 @@ mod tests {
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"  "}}});
         let err = call_tool(&request, "fake-key").await.unwrap_err();
         assert!(err.to_string().contains("prompt must not be empty"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_invalid_model_name_errors() {
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"../../etc/passwd"}}});
+        let err = call_tool(&request, "fake-key").await.unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
     }
 }
