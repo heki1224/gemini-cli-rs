@@ -10,24 +10,6 @@ use crate::models::{
 
 const API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
-/// Extract text from a single SSE `data:` line.
-/// Returns `None` for keepalives, `[DONE]`, or lines without text content.
-pub fn parse_sse_text(line: &str) -> Option<String> {
-    let json_str = line.strip_prefix("data: ")?;
-    if json_str == "[DONE]" {
-        return None;
-    }
-    let chunk: StreamChunk = serde_json::from_str(json_str).ok()?;
-    let part = chunk
-        .candidates?
-        .into_iter()
-        .next()?
-        .content?
-        .parts
-        .into_iter()
-        .next()?;
-    part.text
-}
 
 pub struct GeminiClient {
     client: Client,
@@ -217,49 +199,3 @@ impl GeminiClient {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn text_sse(text: &str) -> String {
-        format!(
-            r#"data: {{"candidates":[{{"content":{{"role":"model","parts":[{{"text":"{text}"}}]}}}}]}}"#
-        )
-    }
-
-    #[test]
-    fn parse_sse_text_returns_text() {
-        let line = text_sse("Hello");
-        assert_eq!(parse_sse_text(&line), Some("Hello".into()));
-    }
-
-    #[test]
-    fn parse_sse_text_done_returns_none() {
-        assert_eq!(parse_sse_text("data: [DONE]"), None);
-    }
-
-    #[test]
-    fn parse_sse_text_empty_returns_none() {
-        assert_eq!(parse_sse_text(""), None);
-    }
-
-    #[test]
-    fn parse_sse_text_comment_returns_none() {
-        assert_eq!(parse_sse_text(": keep-alive"), None);
-    }
-
-    #[test]
-    fn parse_sse_text_malformed_json_returns_none() {
-        assert_eq!(parse_sse_text("data: {not valid json}"), None);
-    }
-
-    #[test]
-    fn parse_sse_text_no_candidates_returns_none() {
-        assert_eq!(parse_sse_text(r#"data: {"candidates":[]}"#), None);
-    }
-
-    #[test]
-    fn parse_sse_text_null_candidates_returns_none() {
-        assert_eq!(parse_sse_text(r#"data: {"candidates":null}"#), None);
-    }
-}
