@@ -9,6 +9,8 @@ use clap::Parser;
 use api::GeminiClient;
 use models::Content;
 
+pub(crate) const DEFAULT_MODEL: &str = "gemini-3-flash-preview";
+
 #[derive(Parser)]
 #[command(name = "gemini", about = "Gemini CLI - Rust implementation")]
 struct Cli {
@@ -21,7 +23,7 @@ struct Cli {
     api_key: Option<String>,
 
     /// Model to use
-    #[arg(short, long, default_value = "gemini-3-flash-preview")]
+    #[arg(short, long, default_value = DEFAULT_MODEL)]
     model: String,
 
     /// Prompt to send (required in CLI mode)

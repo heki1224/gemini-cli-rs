@@ -7,12 +7,14 @@ use crate::api::GeminiClient;
 use crate::context;
 use crate::models::Content;
 
-const DEFAULT_MODEL: &str = "gemini-3-flash-preview";
-
 /// Run the MCP server (JSON-RPC 2.0 over stdio).
 /// All user-visible output goes to stderr; stdout is reserved for the protocol.
 pub async fn run(api_key: String) -> Result<()> {
     eprintln!("[gemini-mcp] Server started");
+
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()?;
 
     let stdin = tokio::io::BufReader::new(tokio::io::stdin());
     let mut lines = stdin.lines();
@@ -44,7 +46,7 @@ pub async fn run(api_key: String) -> Result<()> {
         let response_id = id.filter(|v| !v.is_null());
 
         match method {
-            "tools/call" => match call_tool(&request, &api_key).await {
+            "tools/call" => match call_tool(&request, &api_key, &http_client).await {
                 Ok(text) => {
                     if let Some(ref id) = response_id {
                         send_response(json!({
@@ -128,7 +130,7 @@ fn make_response(request: &Value) -> Option<Value> {
                             },
                             "model": {
                                 "type": "string",
-                                "description": "Gemini model to use (default: gemini-3-flash-preview)"
+                                "description": format!("Gemini model to use (default: {})", crate::DEFAULT_MODEL)
                             }
                         },
                         "required": ["prompt"]
@@ -149,7 +151,11 @@ fn make_response(request: &Value) -> Option<Value> {
     }
 }
 
-pub(crate) async fn call_tool(request: &Value, api_key: &str) -> Result<String> {
+pub(crate) async fn call_tool(
+    request: &Value,
+    api_key: &str,
+    http_client: &reqwest::Client,
+) -> Result<String> {
     let params = &request["params"];
     let name = params["name"].as_str().unwrap_or("");
 
@@ -159,7 +165,10 @@ pub(crate) async fn call_tool(request: &Value, api_key: &str) -> Result<String> 
 
     let args = &params["arguments"];
     let prompt = args["prompt"].as_str().unwrap_or("").trim().to_string();
-    let model = args["model"].as_str().unwrap_or(DEFAULT_MODEL).to_string();
+    let model = args["model"]
+        .as_str()
+        .unwrap_or(crate::DEFAULT_MODEL)
+        .to_string();
 
     if prompt.is_empty() {
         anyhow::bail!("prompt must not be empty");
@@ -167,13 +176,18 @@ pub(crate) async fn call_tool(request: &Value, api_key: &str) -> Result<String> 
 
     if !model
         .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '.')
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
     {
         anyhow::bail!("Invalid model name: {}", model);
     }
 
     let system_prompt = context::load_context();
-    let client = GeminiClient::new(api_key.to_string(), model, system_prompt);
+    let client = GeminiClient::with_client(
+        http_client.clone(),
+        api_key.to_string(),
+        model,
+        system_prompt,
+    );
     let history = vec![Content::user(prompt)];
 
     client.collect(&history).await
@@ -247,24 +261,55 @@ mod tests {
         assert_eq!(resp["error"]["code"], -32601);
     }
 
+    fn fake_client() -> reqwest::Client {
+        reqwest::Client::new()
+    }
+
     #[tokio::test]
     async fn call_tool_unknown_tool_name_errors() {
         let request = json!({"params":{"name":"unknown_tool","arguments":{}}});
-        let err = call_tool(&request, "fake-key").await.unwrap_err();
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Unknown tool"));
     }
 
     #[tokio::test]
     async fn call_tool_empty_prompt_errors() {
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"  "}}});
-        let err = call_tool(&request, "fake-key").await.unwrap_err();
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("prompt must not be empty"));
     }
 
     #[tokio::test]
     async fn call_tool_invalid_model_name_errors() {
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"../../etc/passwd"}}});
-        let err = call_tool(&request, "fake-key").await.unwrap_err();
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_unicode_model_name_rejected() {
+        // Unicode alphanumeric (e.g. Japanese) must be rejected by ascii-only validation
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"モデル"}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_valid_model_name_passes_validation() {
+        // A real model name like gemini-1.5-flash must pass validation.
+        // It will fail at the HTTP level (fake key), not at model name validation.
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"gemini-1.5-flash"}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(!err.to_string().contains("Invalid model name"));
     }
 }
