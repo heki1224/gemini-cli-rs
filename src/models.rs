@@ -68,6 +68,8 @@ pub struct StreamChunk {
 #[derive(Deserialize)]
 pub struct Candidate {
     pub content: Option<Content>,
+    #[serde(rename = "finishReason")]
+    pub finish_reason: Option<String>,
     #[serde(rename = "groundingMetadata")]
     pub grounding_metadata: Option<GroundingMetadata>,
 }
@@ -150,6 +152,23 @@ mod tests {
         let json = r#"{}"#;
         let chunk: StreamChunk = serde_json::from_str(json).unwrap();
         assert!(chunk.candidates.is_none());
+    }
+
+    #[test]
+    fn candidate_deserializes_finish_reason_safety() {
+        let json = r#"{"candidates":[{"finishReason":"SAFETY"}]}"#;
+        let chunk: StreamChunk = serde_json::from_str(json).unwrap();
+        let candidate = &chunk.candidates.unwrap()[0];
+        assert_eq!(candidate.finish_reason.as_deref(), Some("SAFETY"));
+        assert!(candidate.content.is_none());
+    }
+
+    #[test]
+    fn candidate_finish_reason_none_when_absent() {
+        let json = r#"{"candidates":[{"content":{"role":"model","parts":[{"text":"hi"}]}}]}"#;
+        let chunk: StreamChunk = serde_json::from_str(json).unwrap();
+        let candidate = &chunk.candidates.unwrap()[0];
+        assert!(candidate.finish_reason.is_none());
     }
 
     #[test]

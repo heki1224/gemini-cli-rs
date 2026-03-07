@@ -26,7 +26,6 @@ pub fn load_context() -> Option<String> {
     let cwd = env::current_dir().ok()?;
     let path = find_context_file(&cwd)?;
     let content = fs::read_to_string(&path).ok()?;
-    eprintln!("[context] Loaded {}", path.display());
     Some(content)
 }
 
