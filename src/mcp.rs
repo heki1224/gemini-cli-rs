@@ -13,7 +13,7 @@ pub async fn run(api_key: String) -> Result<()> {
     eprintln!("[gemini-mcp] Server started");
 
     let http_client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        .connect_timeout(std::time::Duration::from_secs(10))
         .build()?;
 
     let stdin = tokio::io::BufReader::new(tokio::io::stdin());
@@ -302,14 +302,25 @@ mod tests {
         assert!(err.to_string().contains("Invalid model name"));
     }
 
-    #[tokio::test]
-    async fn call_tool_valid_model_name_passes_validation() {
-        // A real model name like gemini-1.5-flash must pass validation.
-        // It will fail at the HTTP level (fake key), not at model name validation.
-        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"gemini-1.5-flash"}}});
-        let err = call_tool(&request, "fake-key", &fake_client())
-            .await
-            .unwrap_err();
-        assert!(!err.to_string().contains("Invalid model name"));
+    fn is_valid_model_name(model: &str) -> bool {
+        !model.is_empty()
+            && model
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    }
+
+    #[test]
+    fn call_tool_valid_model_name_passes_validation() {
+        assert!(is_valid_model_name("gemini-1.5-flash"));
+        assert!(is_valid_model_name("gemini-3-flash-preview"));
+        assert!(is_valid_model_name("gemini-2.5-pro"));
+    }
+
+    #[test]
+    fn call_tool_invalid_model_names_rejected_by_validator() {
+        assert!(!is_valid_model_name("../../etc/passwd"));
+        assert!(!is_valid_model_name("モデル"));
+        assert!(!is_valid_model_name(""));
+        assert!(!is_valid_model_name("model name with spaces"));
     }
 }

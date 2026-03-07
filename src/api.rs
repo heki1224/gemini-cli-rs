@@ -266,25 +266,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn collect_handles_multibyte_across_chunk_boundary() {
-        // "日本語" in UTF-8 is 9 bytes; split after byte 4 to force a chunk boundary
-        // inside a multi-byte character.
-        let japanese = "日本語";
-        let body = sse_body(japanese);
-        let bytes = body.as_bytes();
-        // Split in the middle of the UTF-8 sequence
-        let split_at = 30.min(bytes.len() / 2);
-        let part1 = bytes[..split_at].to_vec();
-        let part2 = bytes[split_at..].to_vec();
-
+    async fn collect_handles_multibyte_characters_correctly() {
+        // Verifies that the Vec<u8> buffer correctly handles multibyte characters
+        // (e.g. Japanese). The previous String buffer would corrupt them if a stream
+        // chunk boundary fell inside a multibyte sequence.
+        let japanese = "日本語テスト";
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-type", "text/event-stream")
-                    // wiremock sends the body as one chunk; we verify the buffer logic
-                    // handles the full body correctly regardless of split point.
-                    .set_body_bytes([part1, part2].concat()),
+                    .set_body_string(sse_body(japanese)),
             )
             .mount(&server)
             .await;
