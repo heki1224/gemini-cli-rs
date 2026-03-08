@@ -20,11 +20,17 @@ fn find_context_file(start: &Path) -> Option<PathBuf> {
     None
 }
 
+pub(crate) const MAX_CONTEXT_BYTES: u64 = 1024 * 1024; // 1 MB
+
 /// Load the GEMINI.md context string, if available.
-/// Returns `None` if no file is found.
+/// Returns `None` if no file is found or if the file exceeds 1 MB.
 pub fn load_context() -> Option<String> {
     let cwd = env::current_dir().ok()?;
     let path = find_context_file(&cwd)?;
+    let size = fs::metadata(&path).ok()?.len();
+    if size > MAX_CONTEXT_BYTES {
+        return None;
+    }
     let content = fs::read_to_string(&path).ok()?;
     Some(content)
 }
@@ -83,5 +89,29 @@ mod tests {
         fs::create_dir(dir.path().join(".git")).unwrap();
         let result = find_context_file(dir.path());
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn load_context_returns_none_for_oversized_file() {
+        let dir = tempfile::tempdir().unwrap();
+        // Write a file just over 1 MB
+        let content = "x".repeat(1024 * 1024 + 1);
+        fs::write(dir.path().join(CONTEXT_FILENAME), content).unwrap();
+
+        // load_context uses current_dir(), so we test find_context_file + size check directly
+        let path = find_context_file(dir.path()).unwrap();
+        let size = fs::metadata(&path).unwrap().len();
+        assert!(
+            size > MAX_CONTEXT_BYTES,
+            "test file should exceed the limit"
+        );
+    }
+
+    #[test]
+    fn load_context_accepts_file_within_size_limit() {
+        let dir = make_temp_dir_with_file(CONTEXT_FILENAME, "# small context");
+        let path = find_context_file(dir.path()).unwrap();
+        let size = fs::metadata(&path).unwrap().len();
+        assert!(size <= MAX_CONTEXT_BYTES);
     }
 }

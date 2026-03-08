@@ -18,8 +18,8 @@ struct Cli {
     #[arg(long)]
     mcp_server: bool,
 
-    /// Gemini API key (falls back to GEMINI_API_KEY env var)
-    #[arg(short, long, env = "GEMINI_API_KEY")]
+    /// Gemini API key (set via GEMINI_API_KEY environment variable)
+    #[arg(long, env = "GEMINI_API_KEY")]
     api_key: Option<String>,
 
     /// Model to use
@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let api_key = match cli.api_key {
         Some(k) => k,
         None => {
-            eprintln!("Error: API key not set. Use -a/--api-key or set GEMINI_API_KEY.");
+            eprintln!("Error: API key not set. Set the GEMINI_API_KEY environment variable.");
             std::process::exit(1);
         }
     };

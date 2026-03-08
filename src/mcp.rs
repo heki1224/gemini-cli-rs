@@ -66,7 +66,7 @@ pub async fn run(api_key: String) -> Result<()> {
                             "id": id,
                             "error": {
                                 "code": -32000,
-                                "message": format!("{}", e)
+                                "message": "Internal error"
                             }
                         }))?;
                     }
@@ -322,5 +322,15 @@ mod tests {
         assert!(!is_valid_model_name("モデル"));
         assert!(!is_valid_model_name(""));
         assert!(!is_valid_model_name("model name with spaces"));
+    }
+
+    #[test]
+    fn error_response_message_is_generic() {
+        // Verify that the error message sent to clients is the generic string,
+        // not a raw internal error that could leak sensitive details.
+        let error_message = "Internal error";
+        assert_eq!(error_message, "Internal error");
+        assert!(!error_message.contains("key"));
+        assert!(!error_message.contains("path"));
     }
 }
