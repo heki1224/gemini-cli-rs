@@ -1,0 +1,3 @@
+[workspace]
+# Enable GitHub Releases even though publish = false (no crates.io publishing)
+git_release_enable = true
