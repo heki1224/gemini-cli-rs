@@ -5,6 +5,7 @@ edition = "2021"
 description = "Gemini CLI written in Rust, optimized for MCP use in Claude Code"
 license = "MIT"
 repository = "https://github.com/heki1224/gemini-cli-rs"
+publish = false
 
 [[bin]]
 name = "gemini"
@@ -22,3 +23,12 @@ anyhow = "1.0"
 [dev-dependencies]
 tempfile = "3"
 wiremock = "0.6"
+
+# Tell cargo-dist to include this binary even though publish = false
+[package.metadata.dist]
+dist = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
