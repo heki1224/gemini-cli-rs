@@ -176,9 +176,16 @@ pub(crate) async fn call_tool(
         anyhow::bail!("prompt must not be empty");
     }
 
-    if !model
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    const MAX_PROMPT_BYTES: usize = 1024 * 1024; // 1 MB
+    if prompt.len() > MAX_PROMPT_BYTES {
+        anyhow::bail!("prompt exceeds maximum size (1 MB)");
+    }
+
+    if model.is_empty()
+        || model.len() > 100
+        || !model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
     {
         anyhow::bail!("Invalid model name: {}", model);
     }
@@ -286,6 +293,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn call_tool_empty_model_name_errors() {
+        let request =
+            json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":""}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_too_long_model_name_errors() {
+        let long_model = "a".repeat(101);
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":long_model}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_oversized_prompt_errors() {
+        let big_prompt = "x".repeat(1024 * 1024 + 1);
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":big_prompt}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("exceeds maximum size"));
+    }
+
+    #[tokio::test]
     async fn call_tool_invalid_model_name_errors() {
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"../../etc/passwd"}}});
         let err = call_tool(&request, "fake-key", &fake_client())
@@ -306,6 +343,7 @@ mod tests {
 
     fn is_valid_model_name(model: &str) -> bool {
         !model.is_empty()
+            && model.len() <= 100
             && model
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')

@@ -57,6 +57,7 @@ impl GeminiClient {
         F: FnMut(&str),
     {
         if self.model.is_empty()
+            || self.model.len() > 100
             || !self
                 .model
                 .chars()
@@ -322,6 +323,20 @@ mod tests {
             client: Client::new(),
             api_key: "test-key".to_string(),
             model: "".to_string(),
+            system_prompt: None,
+            api_base: "http://localhost".to_string(),
+        };
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn stream_sse_rejects_too_long_model_name() {
+        let client = GeminiClient {
+            client: Client::new(),
+            api_key: "test-key".to_string(),
+            model: "a".repeat(101),
             system_prompt: None,
             api_base: "http://localhost".to_string(),
         };
