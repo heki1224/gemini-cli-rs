@@ -1,6 +1,6 @@
 [package]
 name = "gemini-cli-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Gemini CLI written in Rust, optimized for MCP use in Claude Code"
 license = "MIT"
