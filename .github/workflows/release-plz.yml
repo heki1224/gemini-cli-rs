@@ -1,0 +1,51 @@
+name: release-plz
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # Creates a git tag when the Release PR is merged
+  release-plz-release:
+    name: Release-plz release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+
+  # Creates/updates the Release PR with version bump and changelog
+  release-plz-pr:
+    name: Release-plz PR
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-plz-${{ github.ref }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
