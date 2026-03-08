@@ -123,7 +123,7 @@ Once registered, the `ask_gemini_mcp` tool is available. Claude Code routes prom
 
 ## GEMINI.md
 
-Place a `GEMINI.md` file in your current working directory (or any parent directory up to the `.git` root) to inject system-level context into every request. Useful for project-specific instructions.
+Place a `GEMINI.md` file in your current working directory (or any parent directory) to inject system-level context into every request. The search walks up to the nearest `.git` directory; if no `.git` is found, it continues to the filesystem root. Useful for project-specific instructions.
 
 > **Note:** Files larger than 1 MB are silently ignored.
 

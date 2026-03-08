@@ -7,6 +7,8 @@ use crate::api::GeminiClient;
 use crate::context;
 use crate::models::Content;
 
+const TOOL_CALL_ERROR_MESSAGE: &str = "Internal error";
+
 /// Run the MCP server (JSON-RPC 2.0 over stdio).
 /// All user-visible output goes to stderr; stdout is reserved for the protocol.
 pub async fn run(api_key: String) -> Result<()> {
@@ -66,7 +68,7 @@ pub async fn run(api_key: String) -> Result<()> {
                             "id": id,
                             "error": {
                                 "code": -32000,
-                                "message": "Internal error"
+                                "message": TOOL_CALL_ERROR_MESSAGE
                             }
                         }))?;
                     }
@@ -325,12 +327,22 @@ mod tests {
     }
 
     #[test]
-    fn error_response_message_is_generic() {
-        // Verify that the error message sent to clients is the generic string,
-        // not a raw internal error that could leak sensitive details.
-        let error_message = "Internal error";
-        assert_eq!(error_message, "Internal error");
-        assert!(!error_message.contains("key"));
-        assert!(!error_message.contains("path"));
+    fn error_response_omits_internal_details() {
+        // Build the same JSON that the run() loop sends on tool-call failure,
+        // and verify the message field is the generic constant — not a raw error string.
+        let id = json!(1);
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": {
+                "code": -32000,
+                "message": TOOL_CALL_ERROR_MESSAGE
+            }
+        });
+        let message = response["error"]["message"].as_str().unwrap();
+        assert_eq!(message, "Internal error");
+        assert!(!message.contains("key"));
+        assert!(!message.contains("path"));
+        assert!(!message.contains("token"));
     }
 }

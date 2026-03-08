@@ -19,7 +19,7 @@ struct Cli {
     mcp_server: bool,
 
     /// Gemini API key (set via GEMINI_API_KEY environment variable)
-    #[arg(long, env = "GEMINI_API_KEY")]
+    #[arg(env = "GEMINI_API_KEY")]
     api_key: Option<String>,
 
     /// Model to use

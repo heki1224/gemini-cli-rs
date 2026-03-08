@@ -94,24 +94,32 @@ mod tests {
     #[test]
     fn load_context_returns_none_for_oversized_file() {
         let dir = tempfile::tempdir().unwrap();
-        // Write a file just over 1 MB
         let content = "x".repeat(1024 * 1024 + 1);
         fs::write(dir.path().join(CONTEXT_FILENAME), content).unwrap();
+        // Bound the search so it doesn't escape the temp dir
+        fs::create_dir(dir.path().join(".git")).unwrap();
 
-        // load_context uses current_dir(), so we test find_context_file + size check directly
-        let path = find_context_file(dir.path()).unwrap();
-        let size = fs::metadata(&path).unwrap().len();
+        let original = env::current_dir().unwrap();
+        env::set_current_dir(dir.path()).unwrap();
+        let result = load_context();
+        env::set_current_dir(original).unwrap();
+
         assert!(
-            size > MAX_CONTEXT_BYTES,
-            "test file should exceed the limit"
+            result.is_none(),
+            "load_context should return None for files over 1 MB"
         );
     }
 
     #[test]
     fn load_context_accepts_file_within_size_limit() {
         let dir = make_temp_dir_with_file(CONTEXT_FILENAME, "# small context");
-        let path = find_context_file(dir.path()).unwrap();
-        let size = fs::metadata(&path).unwrap().len();
-        assert!(size <= MAX_CONTEXT_BYTES);
+        fs::create_dir(dir.path().join(".git")).unwrap();
+
+        let original = env::current_dir().unwrap();
+        env::set_current_dir(dir.path()).unwrap();
+        let result = load_context();
+        env::set_current_dir(original).unwrap();
+
+        assert_eq!(result.as_deref(), Some("# small context"));
     }
 }
