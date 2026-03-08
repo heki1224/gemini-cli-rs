@@ -5,3 +5,5 @@ git_only = true
 git_release_enable = true
 # Enable Git tag creation
 git_tag_enable = true
+# Only trigger releases for feat/fix/perf/refactor; docs/chore/style/test do not bump the version
+release_commits = "^(feat|fix|perf|refactor)[:(]"
