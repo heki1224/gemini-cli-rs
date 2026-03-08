@@ -1,7 +1,6 @@
 # gemini-cli-rs
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)
 
 Gemini CLI written in Rust, optimized for use as an [MCP](https://modelcontextprotocol.io/) tool in Claude Code.
 
@@ -15,20 +14,34 @@ Gemini CLI written in Rust, optimized for use as an [MCP](https://modelcontextpr
 
 ## Prerequisites
 
-- Rust 1.70+
 - A Gemini API key (`GEMINI_API_KEY`) — get one at [Google AI Studio](https://aistudio.google.com/apikey)
 
 ## Installation
+
+### Download pre-built binary
+
+Pre-built binaries are available for macOS and Linux on the [Releases page](https://github.com/heki1224/gemini-cli-rs/releases/latest).
+
+```bash
+# Apple Silicon macOS
+curl -L https://github.com/heki1224/gemini-cli-rs/releases/latest/download/gemini-cli-rs-aarch64-apple-darwin.tar.xz | tar -xJ
+mv gemini ~/.local/bin/gemini
+
+# Intel macOS
+curl -L https://github.com/heki1224/gemini-cli-rs/releases/latest/download/gemini-cli-rs-x86_64-apple-darwin.tar.xz | tar -xJ
+mv gemini ~/.local/bin/gemini
+
+# Linux x86_64
+curl -L https://github.com/heki1224/gemini-cli-rs/releases/latest/download/gemini-cli-rs-x86_64-unknown-linux-gnu.tar.xz | tar -xJ
+mv gemini ~/.local/bin/gemini
+```
+
+### Build from source
 
 ```bash
 git clone https://github.com/heki1224/gemini-cli-rs
 cd gemini-cli-rs
 cargo build --release
-```
-
-Optionally, copy to your PATH:
-
-```bash
 cp target/release/gemini ~/.local/bin/gemini
 ```
 
