@@ -7,6 +7,8 @@ use crate::api::GeminiClient;
 use crate::context;
 use crate::models::Content;
 
+const TOOL_CALL_ERROR_MESSAGE: &str = "Internal error";
+
 /// Run the MCP server (JSON-RPC 2.0 over stdio).
 /// All user-visible output goes to stderr; stdout is reserved for the protocol.
 pub async fn run(api_key: String) -> Result<()> {
@@ -66,7 +68,7 @@ pub async fn run(api_key: String) -> Result<()> {
                             "id": id,
                             "error": {
                                 "code": -32000,
-                                "message": format!("{}", e)
+                                "message": TOOL_CALL_ERROR_MESSAGE
                             }
                         }))?;
                     }
@@ -174,9 +176,16 @@ pub(crate) async fn call_tool(
         anyhow::bail!("prompt must not be empty");
     }
 
-    if !model
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    const MAX_PROMPT_BYTES: usize = 1024 * 1024; // 1 MB
+    if prompt.len() > MAX_PROMPT_BYTES {
+        anyhow::bail!("prompt exceeds maximum size (1 MB)");
+    }
+
+    if model.is_empty()
+        || model.len() > 100
+        || !model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
     {
         anyhow::bail!("Invalid model name: {}", model);
     }
@@ -284,6 +293,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn call_tool_empty_model_name_errors() {
+        let request =
+            json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":""}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_too_long_model_name_errors() {
+        let long_model = "a".repeat(101);
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":long_model}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_oversized_prompt_errors() {
+        let big_prompt = "x".repeat(1024 * 1024 + 1);
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":big_prompt}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("exceeds maximum size"));
+    }
+
+    #[tokio::test]
     async fn call_tool_invalid_model_name_errors() {
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","model":"../../etc/passwd"}}});
         let err = call_tool(&request, "fake-key", &fake_client())
@@ -304,6 +343,7 @@ mod tests {
 
     fn is_valid_model_name(model: &str) -> bool {
         !model.is_empty()
+            && model.len() <= 100
             && model
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
@@ -322,5 +362,25 @@ mod tests {
         assert!(!is_valid_model_name("モデル"));
         assert!(!is_valid_model_name(""));
         assert!(!is_valid_model_name("model name with spaces"));
+    }
+
+    #[test]
+    fn error_response_omits_internal_details() {
+        // Build the same JSON that the run() loop sends on tool-call failure,
+        // and verify the message field is the generic constant — not a raw error string.
+        let id = json!(1);
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": {
+                "code": -32000,
+                "message": TOOL_CALL_ERROR_MESSAGE
+            }
+        });
+        let message = response["error"]["message"].as_str().unwrap();
+        assert_eq!(message, "Internal error");
+        assert!(!message.contains("key"));
+        assert!(!message.contains("path"));
+        assert!(!message.contains("token"));
     }
 }

@@ -56,6 +56,16 @@ impl GeminiClient {
     where
         F: FnMut(&str),
     {
+        if self.model.is_empty()
+            || self.model.len() > 100
+            || !self
+                .model
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        {
+            anyhow::bail!("Invalid model name: {}", self.model);
+        }
+
         let url = format!(
             "{}/{}:streamGenerateContent?alt=sse",
             self.api_base, self.model
@@ -84,12 +94,17 @@ impl GeminiClient {
             anyhow::bail!("API error {}: {}", status, text);
         }
 
+        const MAX_BUFFER_BYTES: usize = 10 * 1024 * 1024; // 10 MB
+
         let mut stream = response.bytes_stream();
         let mut pending_grounding: Option<GroundingMetadata> = None;
         let mut buffer: Vec<u8> = Vec::new();
 
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.context("Stream error")?;
+            if buffer.len() + bytes.len() > MAX_BUFFER_BYTES {
+                anyhow::bail!("Response exceeded maximum buffer size (10 MB)");
+            }
             buffer.extend_from_slice(&bytes);
 
             while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
@@ -285,6 +300,69 @@ mod tests {
         let history = vec![Content::user("hi")];
         let result = client.collect(&history).await.unwrap();
         assert_eq!(result, japanese);
+    }
+
+    #[tokio::test]
+    async fn stream_sse_rejects_invalid_model_name() {
+        // No server needed — validation fires before any HTTP request
+        let client = GeminiClient {
+            client: Client::new(),
+            api_key: "test-key".to_string(),
+            model: "../../etc/passwd".to_string(),
+            system_prompt: None,
+            api_base: "http://localhost".to_string(),
+        };
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn stream_sse_rejects_empty_model_name() {
+        let client = GeminiClient {
+            client: Client::new(),
+            api_key: "test-key".to_string(),
+            model: "".to_string(),
+            system_prompt: None,
+            api_base: "http://localhost".to_string(),
+        };
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn stream_sse_rejects_too_long_model_name() {
+        let client = GeminiClient {
+            client: Client::new(),
+            api_key: "test-key".to_string(),
+            model: "a".repeat(101),
+            system_prompt: None,
+            api_base: "http://localhost".to_string(),
+        };
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        assert!(err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn stream_sse_rejects_oversized_response() {
+        let server = MockServer::start().await;
+        // Body slightly over 10 MB to trigger the buffer limit
+        let oversized = "x".repeat(10 * 1024 * 1024 + 1);
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string(oversized),
+            )
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server).await;
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        assert!(err.to_string().contains("maximum buffer size"));
     }
 
     #[tokio::test]

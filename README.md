@@ -1,5 +1,7 @@
 # gemini-cli-rs
 
+English | [日本語](README.ja.md)
+
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
 Gemini CLI written in Rust, optimized for use as an [MCP](https://modelcontextprotocol.io/) tool in Claude Code.
@@ -58,9 +60,6 @@ gemini -p "What is the capital of France?"
 
 # Use a different model
 gemini -m gemini-2.5-pro -p "Explain Rust's borrow checker"
-
-# Pass the API key directly
-gemini -a "your-api-key" -p "Hello"
 ```
 
 Grounding sources are printed to **stderr** after the response.
@@ -81,9 +80,10 @@ Grounding sources are included **in the response text** (not stderr).
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-p, --prompt` | Prompt to send (required in CLI mode) | — |
-| `-a, --api-key` | Gemini API key (or `GEMINI_API_KEY` env) | — |
 | `-m, --model` | Model to use | `gemini-3-flash-preview` |
 | `--mcp-server` | Run as MCP server (JSON-RPC 2.0 over stdio) | — |
+
+The API key is read from the `GEMINI_API_KEY` environment variable only (no `--api-key` flag).
 
 ## MCP Setup (Claude Code)
 
@@ -123,7 +123,9 @@ Once registered, the `ask_gemini_mcp` tool is available. Claude Code routes prom
 
 ## GEMINI.md
 
-Place a `GEMINI.md` file in your current working directory (or any parent directory up to the `.git` root, or the filesystem root) to inject system-level context into every request. Useful for project-specific instructions.
+Place a `GEMINI.md` file in your current working directory (or any parent directory) to inject system-level context into every request. The search walks up to the nearest `.git` directory; if no `.git` is found, it continues to the filesystem root. Useful for project-specific instructions.
+
+> **Note:** Files larger than 1 MB are silently ignored.
 
 ```
 your-project/
