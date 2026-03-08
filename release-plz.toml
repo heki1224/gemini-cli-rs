@@ -1,3 +1,7 @@
 [workspace]
-# Enable GitHub Releases even though publish = false (no crates.io publishing)
+# Use Git tags as the version baseline (required when publish = false)
+git_only = true
+# Enable GitHub Releases
 git_release_enable = true
+# Enable Git tag creation
+git_tag_enable = true
