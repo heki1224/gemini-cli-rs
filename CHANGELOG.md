@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.3...v0.1.4) - 2026-03-11
+
+### Added
+
+- load global ~/.gemini/GEMINI.md as system prompt context
+
+### Other
+
+- update quinn-proto to 0.11.14 (RUSTSEC-2026-0037)
+- skip cargo-dist CI staleness check for custom release steps
+- fix cargo-dist release workflow to use gh release edit
+- use RELEASE_PLZ_TOKEN for GitHub Release creation in cargo-dist
+- replace release-plz release command with custom tag workflow
+
 ## [0.1.3](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.2...v0.1.3) - 2026-03-08
 
 ### Fixed
