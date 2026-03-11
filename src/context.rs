@@ -22,17 +22,40 @@ fn find_context_file(start: &Path) -> Option<PathBuf> {
 
 pub(crate) const MAX_CONTEXT_BYTES: u64 = 1024 * 1024; // 1 MB
 
-/// Load the GEMINI.md context string, if available.
-/// Returns `None` if no file is found or if the file exceeds 1 MB.
-pub fn load_context() -> Option<String> {
-    let cwd = env::current_dir().ok()?;
-    let path = find_context_file(&cwd)?;
-    let size = fs::metadata(&path).ok()?.len();
+/// Read a context file at `path`, returning `None` if missing or over 1 MB.
+fn read_context_file(path: &Path) -> Option<String> {
+    let size = fs::metadata(path).ok()?.len();
     if size > MAX_CONTEXT_BYTES {
         return None;
     }
-    let content = fs::read_to_string(&path).ok()?;
-    Some(content)
+    fs::read_to_string(path).ok()
+}
+
+/// Load the global GEMINI.md from `~/.gemini/GEMINI.md`.
+fn load_global_context(home: &Path) -> Option<String> {
+    read_context_file(&home.join(".gemini").join(CONTEXT_FILENAME))
+}
+
+/// Load the GEMINI.md context string, if available.
+///
+/// Reads from two locations (in order) and concatenates them:
+/// 1. `~/.gemini/GEMINI.md` (global)
+/// 2. The first `GEMINI.md` found from cwd up to the git root (local)
+///
+/// Returns `None` if neither file is found.
+pub fn load_context() -> Option<String> {
+    let home = env::var("HOME").ok().map(PathBuf::from);
+    let global = home.as_deref().and_then(load_global_context);
+
+    let cwd = env::current_dir().ok()?;
+    let local = find_context_file(&cwd).and_then(|p| read_context_file(&p));
+
+    match (global, local) {
+        (Some(g), Some(l)) => Some(format!("{}\n\n{}", g, l)),
+        (Some(g), None) => Some(g),
+        (None, Some(l)) => Some(l),
+        (None, None) => None,
+    }
 }
 
 #[cfg(test)]
@@ -45,6 +68,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join(filename), content).unwrap();
         dir
+    }
+
+    fn make_fake_home(content: &str) -> TempDir {
+        let home = tempfile::tempdir().unwrap();
+        let gemini_dir = home.path().join(".gemini");
+        fs::create_dir(&gemini_dir).unwrap();
+        fs::write(gemini_dir.join(CONTEXT_FILENAME), content).unwrap();
+        home
     }
 
     #[test]
@@ -92,34 +123,72 @@ mod tests {
     }
 
     #[test]
-    fn load_context_returns_none_for_oversized_file() {
+    fn read_context_file_returns_none_for_oversized_file() {
         let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONTEXT_FILENAME);
         let content = "x".repeat(1024 * 1024 + 1);
-        fs::write(dir.path().join(CONTEXT_FILENAME), content).unwrap();
-        // Bound the search so it doesn't escape the temp dir
-        fs::create_dir(dir.path().join(".git")).unwrap();
-
-        let original = env::current_dir().unwrap();
-        env::set_current_dir(dir.path()).unwrap();
-        let result = load_context();
-        env::set_current_dir(original).unwrap();
-
+        fs::write(&path, content).unwrap();
         assert!(
-            result.is_none(),
-            "load_context should return None for files over 1 MB"
+            read_context_file(&path).is_none(),
+            "read_context_file should return None for files over 1 MB"
         );
     }
 
     #[test]
-    fn load_context_accepts_file_within_size_limit() {
+    fn read_context_file_accepts_file_within_size_limit() {
         let dir = make_temp_dir_with_file(CONTEXT_FILENAME, "# small context");
-        fs::create_dir(dir.path().join(".git")).unwrap();
+        let path = dir.path().join(CONTEXT_FILENAME);
+        assert_eq!(read_context_file(&path).as_deref(), Some("# small context"));
+    }
 
-        let original = env::current_dir().unwrap();
-        env::set_current_dir(dir.path()).unwrap();
-        let result = load_context();
-        env::set_current_dir(original).unwrap();
+    #[test]
+    fn load_global_context_reads_home_gemini_md() {
+        let home = make_fake_home("# global context");
+        let result = load_global_context(home.path());
+        assert_eq!(result.as_deref(), Some("# global context"));
+    }
 
-        assert_eq!(result.as_deref(), Some("# small context"));
+    #[test]
+    fn load_global_context_returns_none_when_missing() {
+        let home = tempfile::tempdir().unwrap();
+        let result = load_global_context(home.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn load_global_context_returns_none_for_oversized_file() {
+        let home = tempfile::tempdir().unwrap();
+        let gemini_dir = home.path().join(".gemini");
+        fs::create_dir(&gemini_dir).unwrap();
+        let content = "x".repeat(1024 * 1024 + 1);
+        fs::write(gemini_dir.join(CONTEXT_FILENAME), content).unwrap();
+        let result = load_global_context(home.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn concatenates_global_and_local_with_blank_line() {
+        let home = make_fake_home("# global");
+        let local_dir = tempfile::tempdir().unwrap();
+        fs::write(local_dir.path().join(CONTEXT_FILENAME), "# local").unwrap();
+        fs::create_dir(local_dir.path().join(".git")).unwrap();
+
+        let global = load_global_context(home.path());
+        let local = find_context_file(local_dir.path()).and_then(|p| read_context_file(&p));
+
+        let result = match (global, local) {
+            (Some(g), Some(l)) => Some(format!("{}\n\n{}", g, l)),
+            (Some(g), None) => Some(g),
+            (None, Some(l)) => Some(l),
+            (None, None) => None,
+        };
+        assert_eq!(result.as_deref(), Some("# global\n\n# local"));
+    }
+
+    #[test]
+    fn returns_global_only_when_no_local() {
+        let home = make_fake_home("# global only");
+        let result = load_global_context(home.path());
+        assert_eq!(result.as_deref(), Some("# global only"));
     }
 }
