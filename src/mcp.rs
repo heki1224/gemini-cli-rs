@@ -1,7 +1,6 @@
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, Write};
-use tokio::io::AsyncBufReadExt;
 
 use crate::api::GeminiClient;
 use crate::context;
@@ -18,11 +17,19 @@ pub async fn run(api_key: String) -> Result<()> {
         .connect_timeout(std::time::Duration::from_secs(10))
         .build()?;
 
-    let stdin = tokio::io::BufReader::new(tokio::io::stdin());
-    let mut lines = stdin.lines();
+    const MAX_LINE_BYTES: usize = 1024 * 1024; // 1 MB per JSON-RPC line
+    let codec = tokio_util::codec::LinesCodec::new_with_max_length(MAX_LINE_BYTES);
+    let mut framed = tokio_util::codec::FramedRead::new(tokio::io::stdin(), codec);
 
-    while let Some(line) = lines.next_line().await? {
-        let line = line.trim();
+    while let Some(result) = futures_util::StreamExt::next(&mut framed).await {
+        let line_owned = match result {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[gemini-mcp] Input line too long or read error: {}", e);
+                continue;
+            }
+        };
+        let line = line_owned.trim();
         if line.is_empty() {
             continue;
         }

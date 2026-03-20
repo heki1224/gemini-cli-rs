@@ -24,11 +24,16 @@ pub(crate) const MAX_CONTEXT_BYTES: u64 = 1024 * 1024; // 1 MB
 
 /// Read a context file at `path`, returning `None` if missing or over 1 MB.
 fn read_context_file(path: &Path) -> Option<String> {
-    let size = fs::metadata(path).ok()?.len();
-    if size > MAX_CONTEXT_BYTES {
+    use std::io::Read;
+    let file = fs::File::open(path).ok()?;
+    let mut buf = Vec::new();
+    file.take(MAX_CONTEXT_BYTES + 1)
+        .read_to_end(&mut buf)
+        .ok()?;
+    if buf.len() > MAX_CONTEXT_BYTES as usize {
         return None;
     }
-    fs::read_to_string(path).ok()
+    String::from_utf8(buf).ok()
 }
 
 /// Load the global GEMINI.md from `~/.gemini/GEMINI.md`.
