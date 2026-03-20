@@ -8,6 +8,7 @@
 # Project-specific (not for public)
 /.artifacts/
 /tasks/
+/.agent-context/
 
 # macOS
 .DS_Store
