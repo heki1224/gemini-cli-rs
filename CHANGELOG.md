@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.4...v0.1.5) - 2026-03-20
+
+### Added
+
+- add high-performance model and thinking flag to MCP tool
+
+### Fixed
+
+- prevent OOM via special files and unbounded stdin lines
+
+### Other
+
+- add .agent-context/ to .gitignore
+- update README and context files for dual-model support
+- add AI agent context files (AGENTS.md, CLAUDE.md, GEMINI.md)
+
 ## [0.1.4](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.3...v0.1.4) - 2026-03-11
 
 ### Added
