@@ -1,4 +1,18 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+
+/// Validate a Gemini model name: non-empty, ≤100 chars, ASCII alphanumeric / `-` / `.` only.
+pub(crate) fn validate_model_name(model: &str) -> Result<()> {
+    if model.is_empty()
+        || model.len() > 100
+        || !model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        anyhow::bail!("Invalid model name: {}", model);
+    }
+    Ok(())
+}
 
 // --- Request types ---
 

@@ -2,31 +2,39 @@ use anyhow::{Context, Result};
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::json;
+use std::borrow::Cow;
 use std::io::{self, Write};
+use std::time::Duration;
 
 use crate::models::{
-    Content, GenerateRequest, GroundingMetadata, StreamChunk, SystemInstruction, Tool,
+    validate_model_name, Content, GenerateRequest, GroundingChunkWeb, GroundingMetadata,
+    StreamChunk, SystemInstruction, Tool,
 };
 
 const API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct GeminiClient {
     client: Client,
     api_key: String,
     model: String,
     system_prompt: Option<String>,
-    api_base: String,
+    api_base: Cow<'static, str>,
 }
 
 impl GeminiClient {
     /// Create a new client with a fresh `reqwest::Client`. Used in CLI mode.
     pub fn new(api_key: String, model: String, system_prompt: Option<String>) -> Self {
+        let client = Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .expect("failed to build reqwest client");
         Self {
-            client: Client::new(),
+            client,
             api_key,
             model,
             system_prompt,
-            api_base: API_BASE.to_string(),
+            api_base: Cow::Borrowed(API_BASE),
         }
     }
 
@@ -42,7 +50,7 @@ impl GeminiClient {
             api_key,
             model,
             system_prompt,
-            api_base: API_BASE.to_string(),
+            api_base: Cow::Borrowed(API_BASE),
         }
     }
 
@@ -56,15 +64,7 @@ impl GeminiClient {
     where
         F: FnMut(&str),
     {
-        if self.model.is_empty()
-            || self.model.len() > 100
-            || !self
-                .model
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
-        {
-            anyhow::bail!("Invalid model name: {}", self.model);
-        }
+        validate_model_name(&self.model)?;
 
         let url = format!(
             "{}/{}:streamGenerateContent?alt=sse",
@@ -119,8 +119,8 @@ impl GeminiClient {
                 let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) else {
                     continue;
                 };
-                if let Some(mut candidates) = chunk.candidates {
-                    if let Some(candidate) = candidates.drain(..).next() {
+                if let Some(candidates) = chunk.candidates {
+                    if let Some(candidate) = candidates.into_iter().next() {
                         // Check finish_reason before accessing content (content may be null on SAFETY)
                         if candidate.finish_reason.as_deref() == Some("SAFETY") {
                             anyhow::bail!("Response blocked by safety filters");
@@ -152,19 +152,7 @@ impl GeminiClient {
             .await?;
 
         if let Some(grounding) = grounding {
-            let sources: Vec<_> = grounding
-                .grounding_chunks
-                .iter()
-                .filter_map(|c| c.web.as_ref())
-                .collect();
-            if !sources.is_empty() {
-                result.push_str("\n\n[Sources]\n");
-                for web in sources {
-                    let title = web.title.as_deref().unwrap_or("Unknown");
-                    let uri = web.uri.as_deref().unwrap_or("");
-                    result.push_str(&format!("- {} ({})\n", title, uri));
-                }
-            }
+            append_grounding_sources(&mut result, &grounding);
         }
 
         Ok(result)
@@ -183,22 +171,42 @@ impl GeminiClient {
         println!();
 
         if let Some(grounding) = grounding {
-            let sources: Vec<_> = grounding
-                .grounding_chunks
-                .iter()
-                .filter_map(|c| c.web.as_ref())
-                .collect();
-            if !sources.is_empty() {
-                eprintln!("\n[Sources]");
-                for web in sources {
-                    let title = web.title.as_deref().unwrap_or("Unknown");
-                    let uri = web.uri.as_deref().unwrap_or("");
-                    eprintln!("- {} ({})", title, uri);
-                }
-            }
+            print_grounding_sources_stderr(&grounding);
         }
 
         Ok(())
+    }
+}
+
+fn web_sources(grounding: &GroundingMetadata) -> Vec<&GroundingChunkWeb> {
+    grounding
+        .grounding_chunks
+        .iter()
+        .filter_map(|c| c.web.as_ref())
+        .collect()
+}
+
+fn append_grounding_sources(buf: &mut String, grounding: &GroundingMetadata) {
+    let sources = web_sources(grounding);
+    if !sources.is_empty() {
+        buf.push_str("\n\n[Sources]\n");
+        for web in sources {
+            let title = web.title.as_deref().unwrap_or("Unknown");
+            let uri = web.uri.as_deref().unwrap_or("");
+            buf.push_str(&format!("- {} ({})\n", title, uri));
+        }
+    }
+}
+
+fn print_grounding_sources_stderr(grounding: &GroundingMetadata) {
+    let sources = web_sources(grounding);
+    if !sources.is_empty() {
+        eprintln!("\n[Sources]");
+        for web in sources {
+            let title = web.title.as_deref().unwrap_or("Unknown");
+            let uri = web.uri.as_deref().unwrap_or("");
+            eprintln!("- {} ({})", title, uri);
+        }
     }
 }
 
@@ -226,7 +234,7 @@ mod tests {
             api_key: "test-key".to_string(),
             model: "test-model".to_string(),
             system_prompt: None,
-            api_base: server.uri(),
+            api_base: Cow::Owned(server.uri()),
         }
     }
 
@@ -310,7 +318,7 @@ mod tests {
             api_key: "test-key".to_string(),
             model: "../../etc/passwd".to_string(),
             system_prompt: None,
-            api_base: "http://localhost".to_string(),
+            api_base: Cow::Borrowed("http://localhost"),
         };
         let history = vec![Content::user("hi")];
         let err = client.collect(&history).await.unwrap_err();
@@ -324,7 +332,7 @@ mod tests {
             api_key: "test-key".to_string(),
             model: "".to_string(),
             system_prompt: None,
-            api_base: "http://localhost".to_string(),
+            api_base: Cow::Borrowed("http://localhost"),
         };
         let history = vec![Content::user("hi")];
         let err = client.collect(&history).await.unwrap_err();
@@ -338,7 +346,7 @@ mod tests {
             api_key: "test-key".to_string(),
             model: "a".repeat(101),
             system_prompt: None,
-            api_base: "http://localhost".to_string(),
+            api_base: Cow::Borrowed("http://localhost"),
         };
         let history = vec![Content::user("hi")];
         let err = client.collect(&history).await.unwrap_err();

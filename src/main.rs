@@ -12,6 +12,17 @@ use api::GeminiClient;
 use models::Content;
 
 pub(crate) const DEFAULT_MODEL: &str = "gemini-3-flash-preview";
+pub(crate) const HIGH_PERF_MODEL: &str = "gemini-3.1-pro-preview";
+
+/// Returns the default model, overridable via `GEMINI_DEFAULT_MODEL`.
+pub(crate) fn resolve_default_model() -> String {
+    std::env::var("GEMINI_DEFAULT_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string())
+}
+
+/// Returns the high-performance model, overridable via `GEMINI_HIGH_PERF_MODEL`.
+pub(crate) fn resolve_high_perf_model() -> String {
+    std::env::var("GEMINI_HIGH_PERF_MODEL").unwrap_or_else(|_| HIGH_PERF_MODEL.to_string())
+}
 
 #[derive(Parser)]
 #[command(name = "gemini", about = "Gemini CLI - Rust implementation")]

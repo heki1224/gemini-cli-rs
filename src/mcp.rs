@@ -5,7 +5,7 @@ use tokio::io::AsyncBufReadExt;
 
 use crate::api::GeminiClient;
 use crate::context;
-use crate::models::Content;
+use crate::models::{validate_model_name, Content};
 
 const TOOL_CALL_ERROR_MESSAGE: &str = "Internal error";
 
@@ -132,7 +132,11 @@ fn make_response(request: &Value) -> Option<Value> {
                             },
                             "model": {
                                 "type": "string",
-                                "description": format!("Gemini model to use (default: {})", crate::DEFAULT_MODEL)
+                                "description": format!("Gemini model to use (default: {}). Ignored when thinking=true.", crate::DEFAULT_MODEL)
+                            },
+                            "thinking": {
+                                "type": "boolean",
+                                "description": format!("Use the high-performance model ({}) for complex reasoning, deep analysis, or multi-step tasks. Default: false (uses {}).", crate::HIGH_PERF_MODEL, crate::DEFAULT_MODEL)
                             }
                         },
                         "required": ["prompt"]
@@ -167,10 +171,15 @@ pub(crate) async fn call_tool(
 
     let args = &params["arguments"];
     let prompt = args["prompt"].as_str().unwrap_or("").trim().to_string();
-    let model = args["model"]
-        .as_str()
-        .unwrap_or(crate::DEFAULT_MODEL)
-        .to_string();
+    let thinking = args["thinking"].as_bool().unwrap_or(false);
+    let model = if thinking {
+        crate::resolve_high_perf_model()
+    } else {
+        args["model"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(crate::resolve_default_model)
+    };
 
     if prompt.is_empty() {
         anyhow::bail!("prompt must not be empty");
@@ -181,14 +190,7 @@ pub(crate) async fn call_tool(
         anyhow::bail!("prompt exceeds maximum size (1 MB)");
     }
 
-    if model.is_empty()
-        || model.len() > 100
-        || !model
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
-    {
-        anyhow::bail!("Invalid model name: {}", model);
-    }
+    validate_model_name(&model)?;
 
     let system_prompt = context::load_context();
     let client = GeminiClient::with_client(
@@ -341,27 +343,51 @@ mod tests {
         assert!(err.to_string().contains("Invalid model name"));
     }
 
-    fn is_valid_model_name(model: &str) -> bool {
-        !model.is_empty()
-            && model.len() <= 100
-            && model
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
-    }
-
     #[test]
     fn call_tool_valid_model_name_passes_validation() {
-        assert!(is_valid_model_name("gemini-1.5-flash"));
-        assert!(is_valid_model_name("gemini-3-flash-preview"));
-        assert!(is_valid_model_name("gemini-2.5-pro"));
+        assert!(validate_model_name("gemini-1.5-flash").is_ok());
+        assert!(validate_model_name("gemini-3-flash-preview").is_ok());
+        assert!(validate_model_name("gemini-2.5-pro").is_ok());
     }
 
     #[test]
     fn call_tool_invalid_model_names_rejected_by_validator() {
-        assert!(!is_valid_model_name("../../etc/passwd"));
-        assert!(!is_valid_model_name("モデル"));
-        assert!(!is_valid_model_name(""));
-        assert!(!is_valid_model_name("model name with spaces"));
+        assert!(validate_model_name("../../etc/passwd").is_err());
+        assert!(validate_model_name("モデル").is_err());
+        assert!(validate_model_name("").is_err());
+        assert!(validate_model_name("model name with spaces").is_err());
+    }
+
+    #[tokio::test]
+    async fn call_tool_thinking_true_uses_high_perf_model_passes_validation() {
+        // thinking=true should select HIGH_PERF_MODEL, which is a valid model name.
+        // The call fails at the API level (fake key), not at model validation.
+        let request =
+            json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","thinking":true}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(!err.to_string().contains("Invalid model name"));
+    }
+
+    #[tokio::test]
+    async fn call_tool_thinking_false_falls_back_to_default() {
+        // thinking=false without model arg should use DEFAULT_MODEL (or env override).
+        // Fails at API level, not model validation.
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"hi","thinking":false}}});
+        let err = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap_err();
+        assert!(!err.to_string().contains("Invalid model name"));
+    }
+
+    #[test]
+    fn tools_list_schema_contains_thinking_parameter() {
+        let resp = make_response(&req(2, "tools/list")).unwrap();
+        let tool = &resp["result"]["tools"][0];
+        let props = &tool["inputSchema"]["properties"];
+        assert!(props.get("thinking").is_some());
+        assert_eq!(props["thinking"]["type"], "boolean");
     }
 
     #[test]
