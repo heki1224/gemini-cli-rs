@@ -6,7 +6,7 @@ Gemini CLI written in Rust. Optimized for use as an MCP tool in Claude Code.
 
 ```bash
 cargo build --release        # binary → target/release/gemini
-cargo test                   # run all tests (41 tests)
+cargo test                   # run all tests (49 tests)
 cargo fmt --check            # check formatting (no auto-fix)
 cargo clippy -- -D warnings  # lint (warnings = errors)
 cargo audit --locked         # security audit (run in CI)
@@ -26,8 +26,10 @@ src/
 ## Key Behaviors
 
 - **API key**: `GEMINI_API_KEY` env var only (no `--api-key` flag)
-- **Default model**: `gemini-3-flash-preview` (constant `DEFAULT_MODEL` in main.rs)
-- **Model validation**: empty / >100 chars / non-ASCII rejected in both api.rs and mcp.rs
+- **Default model**: `gemini-3-flash-preview` (`DEFAULT_MODEL` in main.rs); high-perf: `gemini-3.1-pro-preview` (`HIGH_PERF_MODEL`)
+- **Model env overrides**: `GEMINI_DEFAULT_MODEL` / `GEMINI_HIGH_PERF_MODEL` override constants at runtime
+- **MCP `thinking` param**: `ask_gemini_mcp` accepts `thinking: boolean`; `true` selects `HIGH_PERF_MODEL`
+- **Model validation**: `validate_model_name()` in models.rs (empty / >100 chars / non-ASCII rejected)
 - **SSE buffer limit**: 10 MB
 - **MCP prompt limit**: 1 MB
 - **GEMINI.md size limit**: 1 MB

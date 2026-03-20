@@ -85,6 +85,14 @@ Grounding sources are included **in the response text** (not stderr).
 
 The API key is read from the `GEMINI_API_KEY` environment variable only (no `--api-key` flag).
 
+### Environment variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GEMINI_API_KEY` | Gemini API key (required) | — |
+| `GEMINI_DEFAULT_MODEL` | Override the default model at runtime | `gemini-3-flash-preview` |
+| `GEMINI_HIGH_PERF_MODEL` | Override the high-performance model at runtime | `gemini-3.1-pro-preview` |
+
 ## MCP Setup (Claude Code)
 
 This tool is designed to be used as an MCP server inside Claude Code, providing Gemini with Google Search Grounding as a secondary AI assistant.
@@ -118,6 +126,14 @@ claude mcp list
 ```
 
 Once registered, the `ask_gemini_mcp` tool is available. Claude Code routes prompts to Gemini with real-time Google Search grounding.
+
+### MCP tool parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `prompt` | string (required) | The prompt to send to Gemini |
+| `model` | string | Override the model for this request (ignored when `thinking=true`) |
+| `thinking` | boolean | Use the high-performance model (`gemini-3.1-pro-preview`) for complex reasoning or deep analysis. Default: `false` |
 
 > **Note:** The binary writes protocol messages to stdout and all logs to stderr. Do not redirect stderr if you want to see debug output.
 

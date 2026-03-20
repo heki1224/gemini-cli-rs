@@ -85,6 +85,14 @@ GEMINI_API_KEY="your-api-key" gemini --mcp-server
 
 API キーは `GEMINI_API_KEY` 環境変数からのみ読み込まれます（`--api-key` フラグはありません）。
 
+### 環境変数
+
+| 変数 | 説明 | デフォルト |
+|------|------|-----------|
+| `GEMINI_API_KEY` | Gemini API キー（必須） | — |
+| `GEMINI_DEFAULT_MODEL` | デフォルトモデルを実行時に上書き | `gemini-3-flash-preview` |
+| `GEMINI_HIGH_PERF_MODEL` | ハイパフォーマンスモデルを実行時に上書き | `gemini-3.1-pro-preview` |
+
 ## MCP セットアップ（Claude Code）
 
 このツールは Claude Code 内で MCP サーバーとして使用し、Google Search Grounding 付きの Gemini をセカンダリ AI アシスタントとして提供することを目的として設計されています。
@@ -118,6 +126,14 @@ claude mcp list
 ```
 
 登録後、`ask_gemini_mcp` ツールが利用可能になります。Claude Code はプロンプトを Gemini にルーティングし、リアルタイムの Google Search グラウンディングを提供します。
+
+### MCP ツールのパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `prompt` | string（必須） | Gemini に送信するプロンプト |
+| `model` | string | このリクエストのモデルを上書き（`thinking=true` のときは無視） |
+| `thinking` | boolean | 複雑な推論・深い分析にハイパフォーマンスモデル（`gemini-3.1-pro-preview`）を使用。デフォルト: `false` |
 
 > **注意:** バイナリはプロトコルメッセージを stdout に、すべてのログを stderr に出力します。デバッグ出力を確認したい場合は stderr をリダイレクトしないでください。
 

@@ -47,6 +47,6 @@ cargo audit --locked
 
 - No `unsafe` code (`#![forbid(unsafe_code)]`)
 - API key via `GEMINI_API_KEY` env var only
-- Model name: non-empty, ≤100 chars, ASCII alphanumeric + `-` + `.`
+- Model name: validated by `validate_model_name()` in models.rs (non-empty, ≤100 chars, ASCII alphanumeric + `-` + `.`)
 - SSE streaming: use `connect_timeout()`, never `timeout()`
 - MCP errors must not leak internal details to callers
