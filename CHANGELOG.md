@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.5...v0.1.6) - 2026-03-21
+
+### Fixed
+
+- update aws-lc-sys and rustls-webpki to resolve security advisories
+- handle wrong MCP parameter names with alias fallback and helpful errors
+
+### Other
+
+- update dependencies (clap 4.6, anstream 1.0, zerocopy 0.8.47, etc.)
+- document prompt parameter aliases in MCP tool reference
+
 ## [0.1.5](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.4...v0.1.5) - 2026-03-20
 
 ### Added
