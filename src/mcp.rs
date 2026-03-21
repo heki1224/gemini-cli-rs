@@ -135,7 +135,7 @@ fn make_response(request: &Value) -> Option<Value> {
                         "properties": {
                             "prompt": {
                                 "type": "string",
-                                "description": "The prompt to send to Gemini"
+                                "description": "The prompt to send to Gemini. IMPORTANT: This parameter MUST be named 'prompt'. Do not use 'request', 'query', 'message', 'text', or 'input'."
                             },
                             "model": {
                                 "type": "string",
@@ -177,7 +177,6 @@ pub(crate) async fn call_tool(
     }
 
     let args = &params["arguments"];
-    let prompt = args["prompt"].as_str().unwrap_or("").trim().to_string();
     let thinking = args["thinking"].as_bool().unwrap_or(false);
     let model = if thinking {
         crate::resolve_high_perf_model()
@@ -188,9 +187,10 @@ pub(crate) async fn call_tool(
             .unwrap_or_else(crate::resolve_default_model)
     };
 
-    if prompt.is_empty() {
-        anyhow::bail!("prompt must not be empty");
-    }
+    let prompt = match extract_prompt(args) {
+        Ok(p) => p,
+        Err(msg) => return Ok(msg),
+    };
 
     const MAX_PROMPT_BYTES: usize = 1024 * 1024; // 1 MB
     if prompt.len() > MAX_PROMPT_BYTES {
@@ -209,6 +209,39 @@ pub(crate) async fn call_tool(
     let history = vec![Content::user(prompt)];
 
     client.collect(&history).await
+}
+
+/// Extract the prompt string from tool call arguments, falling back to common aliases
+/// used by AI clients that send the wrong parameter name (e.g. "request", "query").
+///
+/// Returns `Ok(prompt)` on success, or `Err(helpful_message)` if no non-empty value
+/// is found under any known alias. The error message is returned to the AI as tool
+/// content so it can self-correct and retry with the correct parameter name.
+///
+/// NOTE: If future tool versions add 'text' or 'input' as separate parameters,
+/// remove them from ALIASES to avoid conflicts.
+fn extract_prompt(args: &Value) -> Result<String, String> {
+    const ALIASES: &[&str] = &["prompt", "request", "query", "message", "text", "input"];
+    for &key in ALIASES {
+        if let Some(val) = args.get(key).and_then(|v| v.as_str()) {
+            let trimmed = val.trim().to_string();
+            if !trimmed.is_empty() {
+                return Ok(trimmed);
+            }
+        }
+    }
+    let keys: Vec<&str> = args
+        .as_object()
+        .map(|m| m.keys().map(String::as_str).collect())
+        .unwrap_or_default();
+    Err(if keys.is_empty() {
+        "Parameter 'prompt' is required. Example: {\"prompt\": \"your question\"}".to_string()
+    } else {
+        format!(
+            "Parameter 'prompt' is required but was not found. Use the parameter name 'prompt'. Received keys: {:?}",
+            keys
+        )
+    })
 }
 
 /// Write a single JSON-RPC response line to stdout and flush.
@@ -293,12 +326,62 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn call_tool_empty_prompt_errors() {
+    async fn call_tool_empty_prompt_returns_helpful_message() {
+        // Whitespace-only prompt is treated as missing; a helpful message is returned as content.
         let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"prompt":"  "}}});
+        let msg = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap();
+        assert!(
+            msg.contains("prompt"),
+            "expected hint about 'prompt' in: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn call_tool_request_alias_accepted() {
+        // AI sends 'request' instead of 'prompt' — alias is accepted, proceeds to API.
+        // Fails at the API level (fake key), not at parameter extraction.
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{"request":"hello"}}});
         let err = call_tool(&request, "fake-key", &fake_client())
             .await
             .unwrap_err();
-        assert!(err.to_string().contains("prompt must not be empty"));
+        // Should NOT be a parameter validation error
+        assert!(
+            !err.to_string().contains("'prompt' is required"),
+            "unexpected param error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn call_tool_completely_unknown_param_returns_helpful_message() {
+        // Unknown key not in alias list → helpful error message returned as content.
+        let request =
+            json!({"params":{"name":"ask_gemini_mcp","arguments":{"user_input":"hello"}}});
+        let msg = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap();
+        assert!(
+            msg.contains("prompt"),
+            "expected hint about 'prompt' in: {msg}"
+        );
+        assert!(
+            msg.contains("user_input"),
+            "expected received key 'user_input' in: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn call_tool_no_args_returns_helpful_message() {
+        // Empty arguments object → helpful message with example.
+        let request = json!({"params":{"name":"ask_gemini_mcp","arguments":{}}});
+        let msg = call_tool(&request, "fake-key", &fake_client())
+            .await
+            .unwrap();
+        assert!(
+            msg.contains("prompt"),
+            "expected hint about 'prompt' in: {msg}"
+        );
     }
 
     #[tokio::test]
