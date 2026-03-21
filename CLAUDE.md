@@ -9,7 +9,7 @@ cargo build --release        # binary → target/release/gemini
 cargo test                   # run all tests (49 tests)
 cargo fmt --check            # check formatting (no auto-fix)
 cargo clippy -- -D warnings  # lint (warnings = errors)
-cargo audit --locked         # security audit (run in CI)
+cargo audit                  # security audit (run in CI)
 ```
 
 ## Architecture

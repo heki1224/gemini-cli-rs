@@ -30,7 +30,7 @@ src/
 ```bash
 cargo test
 cargo fmt --check && cargo clippy -- -D warnings
-cargo audit --locked
+cargo audit
 ```
 
 ### Add a feature

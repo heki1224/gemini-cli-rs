@@ -90,8 +90,9 @@ impl GeminiClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            anyhow::bail!("API error {}: {}", status, text);
+            // Do not include the response body in the error message to avoid leaking
+            // project IDs, quota details, or other internal information.
+            anyhow::bail!("API error {}", status);
         }
 
         const MAX_BUFFER_BYTES: usize = 10 * 1024 * 1024; // 10 MB
@@ -102,7 +103,12 @@ impl GeminiClient {
 
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.context("Stream error")?;
-            if buffer.len() + bytes.len() > MAX_BUFFER_BYTES {
+            if buffer
+                .len()
+                .checked_add(bytes.len())
+                .ok_or_else(|| anyhow::anyhow!("Buffer size overflow"))?
+                > MAX_BUFFER_BYTES
+            {
                 anyhow::bail!("Response exceeded maximum buffer size (10 MB)");
             }
             buffer.extend_from_slice(&bytes);
@@ -286,6 +292,34 @@ mod tests {
         let history = vec![Content::user("hi")];
         let err = client.collect(&history).await.unwrap_err();
         assert!(err.to_string().contains("429"));
+    }
+
+    #[tokio::test]
+    async fn collect_error_does_not_expose_response_body() {
+        // Verify that sensitive API response body (e.g. project IDs, quota details)
+        // is not leaked into the error message.
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(400)
+                    .set_body_string(r#"{"error":{"message":"API key not valid. Please pass a valid API key.","project":"my-secret-project-id"}}"#),
+            )
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server).await;
+        let history = vec![Content::user("hi")];
+        let err = client.collect(&history).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("400"), "should contain status code");
+        assert!(
+            !msg.contains("my-secret-project-id"),
+            "should not expose response body"
+        );
+        assert!(
+            !msg.contains("API key not valid"),
+            "should not expose response body"
+        );
     }
 
     #[tokio::test]

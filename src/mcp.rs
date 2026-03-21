@@ -17,7 +17,11 @@ pub async fn run(api_key: String) -> Result<()> {
         .connect_timeout(std::time::Duration::from_secs(10))
         .build()?;
 
-    const MAX_LINE_BYTES: usize = 1024 * 1024; // 1 MB per JSON-RPC line
+    // JSON-RPC lines must be large enough to accommodate the 1 MB prompt limit plus
+    // JSON encoding overhead (escaping can inflate UTF-8 text up to ~3×). Set to
+    // 10 MB so LinesCodec never cuts off a valid request before the app-layer
+    // prompt check in call_tool() can produce a proper error response with an id.
+    const MAX_LINE_BYTES: usize = 10 * 1024 * 1024; // 10 MB per JSON-RPC line
     let codec = tokio_util::codec::LinesCodec::new_with_max_length(MAX_LINE_BYTES);
     let mut framed = tokio_util::codec::FramedRead::new(tokio::io::stdin(), codec);
 
