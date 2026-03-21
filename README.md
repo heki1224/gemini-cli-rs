@@ -131,7 +131,7 @@ Once registered, the `ask_gemini_mcp` tool is available. Claude Code routes prom
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `prompt` | string (required) | The prompt to send to Gemini |
+| `prompt` | string (required) | The prompt to send to Gemini. Aliases `request`, `query`, `message`, `text`, `input` are also accepted as fallbacks |
 | `model` | string | Override the model for this request (ignored when `thinking=true`) |
 | `thinking` | boolean | Use the high-performance model (`gemini-3.1-pro-preview`) for complex reasoning or deep analysis. Default: `false` |
 

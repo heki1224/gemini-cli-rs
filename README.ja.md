@@ -131,7 +131,7 @@ claude mcp list
 
 | パラメータ | 型 | 説明 |
 |-----------|-----|------|
-| `prompt` | string（必須） | Gemini に送信するプロンプト |
+| `prompt` | string（必須） | Gemini に送信するプロンプト。`request`、`query`、`message`、`text`、`input` もフォールバックとして受け付ける |
 | `model` | string | このリクエストのモデルを上書き（`thinking=true` のときは無視） |
 | `thinking` | boolean | 複雑な推論・深い分析にハイパフォーマンスモデル（`gemini-3.1-pro-preview`）を使用。デフォルト: `false` |
 
