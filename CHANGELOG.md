@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.6...v0.1.7) - 2026-03-21
+
+### Fixed
+
+- harden buffer overflow check, hide API error body, expand MCP line limit
+
 ## [0.1.6](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.5...v0.1.6) - 2026-03-21
 
 ### Fixed
