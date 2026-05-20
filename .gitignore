@@ -9,6 +9,11 @@
 /.artifacts/
 /tasks/
 /.agent-context/
+/.prowl/
+/bin/
+
+# Logs
+*.log
 
 # macOS
 .DS_Store
