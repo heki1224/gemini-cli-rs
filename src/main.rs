@@ -3,6 +3,7 @@
 mod api;
 mod context;
 mod mcp;
+mod mcp_http;
 mod models;
 
 use anyhow::Result;
@@ -11,7 +12,7 @@ use clap::Parser;
 use api::GeminiClient;
 use models::Content;
 
-pub(crate) const DEFAULT_MODEL: &str = "gemini-3-flash-preview";
+pub(crate) const DEFAULT_MODEL: &str = "gemini-3.5-flash";
 pub(crate) const HIGH_PERF_MODEL: &str = "gemini-3.1-pro-preview";
 
 /// Returns the default model, overridable via `GEMINI_DEFAULT_MODEL`.
@@ -30,6 +31,10 @@ struct Cli {
     /// Run as MCP server (JSON-RPC 2.0 over stdio)
     #[arg(long)]
     mcp_server: bool,
+
+    /// Run as MCP HTTP server (streamable-http transport) on the specified port
+    #[arg(long)]
+    mcp_http_port: Option<u16>,
 
     /// Gemini API key (set via GEMINI_API_KEY environment variable)
     #[arg(env = "GEMINI_API_KEY")]
@@ -56,8 +61,15 @@ async fn main() -> Result<()> {
         }
     };
 
+    if cli.mcp_server && cli.mcp_http_port.is_some() {
+        eprintln!("Error: --mcp-server and --mcp-http-port are mutually exclusive.");
+        std::process::exit(1);
+    }
+
     if cli.mcp_server {
         mcp::run(api_key).await?;
+    } else if let Some(port) = cli.mcp_http_port {
+        mcp_http::run(api_key, port).await?;
     } else {
         let prompt = match cli.prompt {
             Some(p) => p,

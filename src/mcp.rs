@@ -6,7 +6,7 @@ use crate::api::GeminiClient;
 use crate::context;
 use crate::models::{validate_model_name, Content};
 
-const TOOL_CALL_ERROR_MESSAGE: &str = "Internal error";
+pub(crate) const TOOL_CALL_ERROR_MESSAGE: &str = "Internal error";
 
 /// Run the MCP server (JSON-RPC 2.0 over stdio).
 /// All user-visible output goes to stderr; stdout is reserved for the protocol.
@@ -99,7 +99,7 @@ pub async fn run(api_key: String) -> Result<()> {
 
 /// Build a JSON-RPC 2.0 response for synchronous (non-tool-call) methods.
 /// Returns None for notifications (no `id`) or when no response is required.
-fn make_response(request: &Value) -> Option<Value> {
+pub(crate) fn make_response(request: &Value) -> Option<Value> {
     let id = request.get("id").cloned();
     let method = request["method"].as_str().unwrap_or("");
 
@@ -441,6 +441,7 @@ mod tests {
     fn call_tool_valid_model_name_passes_validation() {
         assert!(validate_model_name("gemini-1.5-flash").is_ok());
         assert!(validate_model_name("gemini-3-flash-preview").is_ok());
+        assert!(validate_model_name("gemini-3.5-flash").is_ok());
         assert!(validate_model_name("gemini-2.5-pro").is_ok());
     }
 
