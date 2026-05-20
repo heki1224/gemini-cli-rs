@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.7...v0.1.8) - 2026-05-20
+
+### Added
+
+- add --mcp-http-port flag for streamable-http MCP transport
+
+### Fixed
+
+- update rustls-webpki to 0.103.13 and rand to 0.9.4 for security advisories
+
+### Other
+
+- Merge branch 'main' into dependabot/cargo/clap-4.6.1
+- Merge branch 'main' into dependabot/cargo/clap-4.6.1
+- *(deps)* bump tokio from 1.50.0 to 1.52.3
+- document HTTP transport mode and bump default model
+- extend .gitignore for local artifacts and log files
+
 ## [0.1.7](https://github.com/heki1224/gemini-cli-rs/compare/v0.1.6...v0.1.7) - 2026-03-21
 
 ### Fixed
