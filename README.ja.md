@@ -75,13 +75,33 @@ GEMINI_API_KEY="your-api-key" gemini --mcp-server
 
 グラウンディングの出典はレスポンス本文に**含まれます**（stderr ではありません）。
 
+### MCP HTTP サーバーモード（streamable-http）— 実験的
+
+stdio 以外の連携（ブラウザベースのクライアント・別プロセス・コンテナ構成など）向けに、JSON-RPC 2.0 over HTTP（[streamable-http](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) トランスポート）でも待ち受けできます。
+
+```bash
+GEMINI_API_KEY="your-api-key" gemini --mcp-http-port 3002
+# Listening on http://127.0.0.1:3002/mcp
+```
+
+| 項目 | 内容 |
+|------|------|
+| Listen アドレス | `127.0.0.1:<PORT>`（ループバック固定 — LAN・Docker ホスト等からは到達不可） |
+| エンドポイント | `POST /mcp` |
+| トランスポート | ステートレスなリクエスト・レスポンス。サーバー起点の通知は非対応 |
+| CORS | 全オリジン許可（開発利便性のため） |
+| ボディ上限 | 10 MB |
+
+> **セキュリティ警告:** CORS が全オリジンを許可しているため、ブラウザで開いた悪意のあるページから `127.0.0.1:<PORT>/mcp` 経由で Gemini API が呼び出され、API 利用料を負担させられる可能性があります。信頼できるマシン上のローカル開発用途のみに使用してください。Claude Code 公式 MCP 連携は stdio (`--mcp-server`) を使います。HTTP モードはあくまで補助的なツール連携用です。
+
 ## オプション
 
 | フラグ | 説明 | デフォルト |
 |--------|------|-----------|
 | `-p, --prompt` | 送信するプロンプト（CLI モードでは必須） | — |
-| `-m, --model` | 使用するモデル | `gemini-3-flash-preview` |
+| `-m, --model` | 使用するモデル | `gemini-3.5-flash` |
 | `--mcp-server` | MCP サーバーとして起動（JSON-RPC 2.0 over stdio） | — |
+| `--mcp-http-port <PORT>` | MCP サーバーを HTTP で起動（streamable-http、`127.0.0.1:<PORT>`） | — |
 
 API キーは `GEMINI_API_KEY` 環境変数からのみ読み込まれます（`--api-key` フラグはありません）。
 
@@ -90,7 +110,7 @@ API キーは `GEMINI_API_KEY` 環境変数からのみ読み込まれます（`
 | 変数 | 説明 | デフォルト |
 |------|------|-----------|
 | `GEMINI_API_KEY` | Gemini API キー（必須） | — |
-| `GEMINI_DEFAULT_MODEL` | デフォルトモデルを実行時に上書き | `gemini-3-flash-preview` |
+| `GEMINI_DEFAULT_MODEL` | デフォルトモデルを実行時に上書き | `gemini-3.5-flash` |
 | `GEMINI_HIGH_PERF_MODEL` | ハイパフォーマンスモデルを実行時に上書き | `gemini-3.1-pro-preview` |
 
 ## MCP セットアップ（Claude Code）

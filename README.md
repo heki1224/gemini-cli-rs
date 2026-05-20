@@ -75,13 +75,33 @@ GEMINI_API_KEY="your-api-key" gemini --mcp-server
 
 Grounding sources are included **in the response text** (not stderr).
 
+### MCP HTTP server mode (streamable-http) — experimental
+
+For non-stdio integrations (browser-based clients, separate processes, container setups), the binary can also serve JSON-RPC 2.0 over HTTP using the [streamable-http](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport.
+
+```bash
+GEMINI_API_KEY="your-api-key" gemini --mcp-http-port 3002
+# Listening on http://127.0.0.1:3002/mcp
+```
+
+| Property | Value |
+|----------|-------|
+| Listen address | `127.0.0.1:<PORT>` (loopback only — not reachable from LAN/Docker host) |
+| Endpoint | `POST /mcp` |
+| Transport | Stateless request/response. Server-initiated notifications are not supported. |
+| CORS | All origins allowed (development convenience) |
+| Body limit | 10 MB |
+
+> **Security warning:** Because CORS allows any origin, a malicious page open in your browser can send requests to `127.0.0.1:<PORT>/mcp` and trigger Gemini API calls billed to your key. Use this mode only on trusted machines for local development. The official Claude Code MCP integration uses stdio (`--mcp-server`); HTTP mode is provided for ad-hoc tooling.
+
 ## Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-p, --prompt` | Prompt to send (required in CLI mode) | — |
-| `-m, --model` | Model to use | `gemini-3-flash-preview` |
+| `-m, --model` | Model to use | `gemini-3.5-flash` |
 | `--mcp-server` | Run as MCP server (JSON-RPC 2.0 over stdio) | — |
+| `--mcp-http-port <PORT>` | Run as MCP server over HTTP (streamable-http) on `127.0.0.1:<PORT>` | — |
 
 The API key is read from the `GEMINI_API_KEY` environment variable only (no `--api-key` flag).
 
@@ -90,7 +110,7 @@ The API key is read from the `GEMINI_API_KEY` environment variable only (no `--a
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GEMINI_API_KEY` | Gemini API key (required) | — |
-| `GEMINI_DEFAULT_MODEL` | Override the default model at runtime | `gemini-3-flash-preview` |
+| `GEMINI_DEFAULT_MODEL` | Override the default model at runtime | `gemini-3.5-flash` |
 | `GEMINI_HIGH_PERF_MODEL` | Override the high-performance model at runtime | `gemini-3.1-pro-preview` |
 
 ## MCP Setup (Claude Code)

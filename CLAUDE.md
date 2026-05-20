@@ -26,7 +26,7 @@ src/
 ## Key Behaviors
 
 - **API key**: `GEMINI_API_KEY` env var only (no `--api-key` flag)
-- **Default model**: `gemini-3-flash-preview` (`DEFAULT_MODEL` in main.rs); high-perf: `gemini-3.1-pro-preview` (`HIGH_PERF_MODEL`)
+- **Default model**: `gemini-3.5-flash` (`DEFAULT_MODEL` in main.rs); high-perf: `gemini-3.1-pro-preview` (`HIGH_PERF_MODEL`)
 - **Model env overrides**: `GEMINI_DEFAULT_MODEL` / `GEMINI_HIGH_PERF_MODEL` override constants at runtime
 - **MCP `thinking` param**: `ask_gemini_mcp` accepts `thinking: boolean`; `true` selects `HIGH_PERF_MODEL`
 - **Model validation**: `validate_model_name()` in models.rs (empty / >100 chars / non-ASCII rejected)
